@@ -9618,6 +9618,12 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         break;
 #endif
 
+#ifdef TARGET_NR_setns
+    case TARGET_NR_setns:
+        ret = get_errno(setns(arg1, arg2));
+        break;
+#endif
+
     default:
     unimplemented:
         gemu_log("qemu: Unsupported syscall: %d\n", num);
