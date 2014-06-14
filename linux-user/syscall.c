@@ -5406,6 +5406,63 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         unlock_user(p, arg2, 0);
         break;
 #endif
+#ifdef TARGET_NR_name_to_handle_at
+    case TARGET_NR_name_to_handle_at:
+        {
+            struct file_handle *fh;
+            uint32_t sz;
+            int mount_id;
+
+            p = lock_user_string(arg2);
+            if (!p) {
+                goto efault;
+            }
+
+            if (get_user_u32(sz, arg3)) {
+                unlock_user(p, arg2, 0);
+                goto efault;
+            }
+
+            fh = lock_user(VERIFY_WRITE, arg3, sizeof(*fh) + sz, 1);
+            if (!fh) {
+                unlock_user(p, arg2, 0);
+                goto efault;
+            }
+
+            ret = get_errno(name_to_handle_at(arg1, path(p), fh,
+                                              &mount_id, arg5));
+
+            unlock_user(p, arg2, 0);
+            unlock_user(p, arg3, sizeof(*fh) + sz);
+
+            if (put_user_s32(mount_id, arg4)) {
+                goto efault;
+            }
+        }
+        break;
+#endif
+#ifdef TARGET_NR_open_by_handle_at
+    case TARGET_NR_open_by_handle_at:
+        {
+            struct file_handle *fh;
+            uint32_t sz;
+
+            if (get_user_u32(sz, arg2)) {
+                goto efault;
+            }
+
+            fh = lock_user(VERIFY_WRITE, arg2, sizeof(*fh) + sz, 1);
+            if (!fh) {
+                goto efault;
+            }
+
+            ret = get_errno(open_by_handle_at(arg1, fh,
+                    target_to_host_bitmask(arg3, fcntl_flags_tbl)));
+
+            unlock_user(p, arg2, sizeof(*fh) + sz);
+        }
+        break;
+#endif
     case TARGET_NR_close:
         ret = get_errno(close(arg1));
         break;
