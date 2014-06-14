@@ -9624,6 +9624,12 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         break;
 #endif
 
+#ifdef TARGET_NR_unshare
+    case TARGET_NR_unshare:
+        ret = get_errno(unshare(arg1));
+        break;
+#endif
+
     default:
     unimplemented:
         gemu_log("qemu: Unsupported syscall: %d\n", num);
