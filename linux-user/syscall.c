@@ -109,6 +109,7 @@ int __clone2(int (*fn)(void *), void *child_stack_base,
 #include <linux/route.h>
 #include <linux/filter.h>
 #include <linux/blkpg.h>
+#include <linux/netlink.h>
 #include "linux_loop.h"
 #include "uname.h"
 
@@ -123,6 +124,9 @@ int __clone2(int (*fn)(void *), void *child_stack_base,
 #define	VFAT_IOCTL_READDIR_BOTH		_IOR('r', 1, struct linux_dirent [2])
 #define	VFAT_IOCTL_READDIR_SHORT	_IOR('r', 2, struct linux_dirent [2])
 
+#ifndef SOL_NETLINK
+# define SOL_NETLINK 270
+#endif
 
 #undef _syscall0
 #undef _syscall1
@@ -1282,16 +1286,38 @@ static inline abi_long target_to_host_cmsg(struct msghdr *msgh,
         cmsg->cmsg_type = tswap32(target_cmsg->cmsg_type);
         cmsg->cmsg_len = CMSG_LEN(len);
 
-        if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
+        switch (cmsg->cmsg_level) {
+        case SOL_NETLINK:
+            switch (cmsg->cmsg_type) {
+            case NETLINK_PKTINFO:
+                memcpy(data, target_data, len);
+                break;
+
+            default:
+                goto unimplemented;
+            }
+            break;
+
+        case SOL_SOCKET:
+            switch (cmsg->cmsg_type) {
+            case SCM_RIGHTS: {
+                    int *fd = (int *)data;
+                    int *target_fd = (int *)target_data;
+                    int i, numfds = len / sizeof(int);
+
+                    for (i = 0; i < numfds; i++)
+                        fd[i] = tswap32(target_fd[i]);
+                }
+                break;
+            default:
+                goto unimplemented;
+            }
+            break;
+
+        default:
+unimplemented:
             gemu_log("Unsupported ancillary data: %d/%d\n", cmsg->cmsg_level, cmsg->cmsg_type);
             memcpy(data, target_data, len);
-        } else {
-            int *fd = (int *)data;
-            int *target_fd = (int *)target_data;
-            int i, numfds = len / sizeof(int);
-
-            for (i = 0; i < numfds; i++)
-                fd[i] = tswap32(target_fd[i]);
         }
 
         cmsg = CMSG_NXTHDR(msgh, cmsg);
@@ -1379,6 +1405,17 @@ static inline abi_long host_to_target_cmsg(struct target_msghdr *target_msgh,
                 __put_user(cred->gid, &target_cred->gid);
                 break;
             }
+            default:
+                goto unimplemented;
+            }
+            break;
+
+        case SOL_NETLINK:
+            switch (cmsg->cmsg_type) {
+            case NETLINK_PKTINFO:
+                memcpy(target_data, data, len);
+                break;
+
             default:
                 goto unimplemented;
             }
@@ -1510,6 +1547,21 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
 
         default:
             goto unimplemented;
+        }
+        break;
+    case SOL_NETLINK:
+        switch (optname) {
+        case NETLINK_RX_RING:
+        case NETLINK_TX_RING:
+            goto unimplemented;
+
+        default:
+            if (optlen < sizeof(uint32_t))
+                return -TARGET_EINVAL;
+
+            if (get_user_u32(val, optval_addr))
+                return -TARGET_EFAULT;
+            ret = get_errno(setsockopt(sockfd, level, optname, &val, sizeof(val)));
         }
         break;
     case TARGET_SOL_SOCKET:
@@ -1767,6 +1819,16 @@ static abi_long do_getsockopt(int sockfd, int level, int optname,
             goto int_case;
         }
         break;
+    case SOL_NETLINK:
+        switch (optname) {
+        case NETLINK_RX_RING:
+        case NETLINK_TX_RING:
+            goto unimplemented;
+
+        default:
+            goto int_case;
+        }
+        break;
     case SOL_TCP:
         /* TCP options all take an 'int' value.  */
     int_case:
@@ -2000,8 +2062,11 @@ static abi_long do_socket(int domain, int type, int protocol)
         return ret;
     }
 
+#if defined(HOST_WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
     if (domain == PF_NETLINK)
         return -TARGET_EAFNOSUPPORT;
+#endif
+
     ret = get_errno(socket(domain, type, protocol));
     if (ret >= 0) {
         ret = sock_flags_fixup(ret, target_type);
