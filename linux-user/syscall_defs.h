@@ -923,6 +923,7 @@ struct target_pollfd {
 #define TARGET_FIBMAP     TARGET_IO(0x00,1)  /* bmap access */
 #define TARGET_FIGETBSZ   TARGET_IO(0x00,2)  /* get the block size used for bmap */
 #define TARGET_FS_IOC_FIEMAP TARGET_IOWR('f',11,struct fiemap)
+#define TARGET_FS_IOC_GETFLAGS TARGET_IOR('f',1,abi_ulong)
 
 /* cdrom commands */
 #define TARGET_CDROMPAUSE		0x5301 /* Pause Audio Operation */
