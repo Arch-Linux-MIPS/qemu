@@ -1284,6 +1284,12 @@
 #ifdef TARGET_NR_signal
 { TARGET_NR_signal, "signal" , NULL, NULL, NULL },
 #endif
+#ifdef TARGET_NR_signalfd
+{ TARGET_NR_signalfd, "signalfd" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_signalfd4
+{ TARGET_NR_signalfd4, "signalfd4" , NULL, NULL, NULL },
+#endif
 #ifdef TARGET_NR_sigpending
 { TARGET_NR_sigpending, "sigpending" , NULL, NULL, NULL },
 #endif

@@ -57,6 +57,7 @@ int __clone2(int (*fn)(void *), void *child_stack_base,
 #include <sys/times.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/signalfd.h>
 #include <sys/statfs.h>
 #include <sys/timerfd.h>
 #include <utime.h>
@@ -291,6 +292,80 @@ static bitmask_transtbl fcntl_flags_tbl[] = {
 #endif
   { 0, 0, 0, 0 }
 };
+
+/* TODO: mutex to protect signalfd_bitmap */
+static size_t signalfd_bitmap_bytes = 4;
+static DECLARE_BITMAP(_signalfd_bitmap, 32);
+static unsigned long *signalfd_bitmap = _signalfd_bitmap;
+
+static void set_signalfd(int fd)
+{
+    if (fd >= (signalfd_bitmap_bytes * 8)) {
+        size_t new_bytes = signalfd_bitmap_bytes * 2;
+        unsigned long *new_bitmap = malloc(new_bytes);
+
+        if (!new_bitmap) {
+            exit(1);
+        }
+
+        memcpy(new_bitmap, signalfd_bitmap, signalfd_bitmap_bytes);
+        memset((void *)new_bitmap + signalfd_bitmap_bytes, 0,
+               signalfd_bitmap_bytes);
+
+        if (signalfd_bitmap != _signalfd_bitmap)
+            free(signalfd_bitmap);
+
+        signalfd_bitmap = new_bitmap;
+        signalfd_bitmap_bytes = new_bytes;
+    }
+
+    set_bit(fd, signalfd_bitmap);
+}
+
+static bool is_signalfd(int fd)
+{
+    if (fd >= (signalfd_bitmap_bytes * 8)) {
+        return false;
+    }
+
+    return test_bit(fd, signalfd_bitmap);
+}
+
+static void clear_signalfd(int fd)
+{
+    if (fd >= (signalfd_bitmap_bytes * 8)) {
+        return;
+    }
+
+    clear_bit(fd, signalfd_bitmap);
+}
+
+static int read_signalfd(int fd, void *buf, size_t size)
+{
+    uint32_t signo, *psigno;
+    size_t i;
+    int ret;
+
+    ret = read(fd, buf, size);
+    if (ret == -1)
+        return ret;
+
+    /*
+     * Linux only returns multiples of sizeof(struct signalfd_siginfo),
+     * which makes this nice & easy :)
+     */
+    assert((ret & (sizeof(struct signalfd_siginfo) - 1)) == 0);
+
+    for (i = 0; i < ret; i += sizeof(struct signalfd_siginfo)) {
+        psigno = (uint32_t *)(buf + i);
+
+        __get_user(signo, psigno);
+        signo = host_to_target_signal(signo);
+        __put_user(signo, psigno);
+    }
+
+    return ret;
+}
 
 static int sys_getcwd1(char *buf, size_t size)
 {
@@ -2154,6 +2229,34 @@ static abi_long do_accept4(int fd, abi_ulong target_addr,
         if (put_user_u32(addrlen, target_addrlen_addr))
             ret = -TARGET_EFAULT;
     }
+    return ret;
+}
+
+static abi_long do_signalfd4(int fd, abi_ulong target_addr,
+                             size_t sizemask, int flags)
+{
+    int host_flags, ret;
+    sigset_t host_ss;
+    target_sigset_t *target_ss;
+
+    host_flags = target_to_host_bitmask(flags, fcntl_flags_tbl);
+
+    if (sizemask != sizeof(target_sigset_t))
+        return -TARGET_EINVAL;
+
+    target_ss = lock_user(VERIFY_READ, target_addr, sizemask, 1);
+    if (!target_ss)
+        return -TARGET_EFAULT;
+
+    target_to_host_sigset(&host_ss, target_ss);
+
+    unlock_user(target_ss, target_addr, 0);
+
+    ret = get_errno(signalfd(fd, &host_ss, host_flags));
+    if (!is_error(ret)) {
+        set_signalfd(ret);
+    }
+
     return ret;
 }
 
@@ -5388,7 +5491,10 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         else {
             if (!(p = lock_user(VERIFY_WRITE, arg2, arg3, 0)))
                 goto efault;
-            ret = get_errno(read(arg1, p, arg3));
+            if (is_signalfd(arg1))
+                ret = get_errno(read_signalfd(arg1, p, arg3));
+            else
+                ret = get_errno(read(arg1, p, arg3));
             unlock_user(p, arg2, ret);
         }
         break;
@@ -5476,6 +5582,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
     case TARGET_NR_close:
         ret = get_errno(close(arg1));
+        clear_signalfd(arg1);
         break;
     case TARGET_NR_brk:
         ret = do_brk(arg1);
@@ -9626,6 +9733,18 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #if defined(TARGET_NR_ioprio_set) && defined(__NR_ioprio_set)
     case TARGET_NR_ioprio_set:
         ret = get_errno(ioprio_set(arg1, arg2, arg3));
+        break;
+#endif
+
+#ifdef TARGET_NR_signalfd
+    case TARGET_NR_signalfd:
+        ret = do_signalfd4(arg1, arg2, arg3, 0);
+        break;
+#endif
+
+#ifdef TARGET_NR_signalfd4
+    case TARGET_NR_signalfd4:
+        ret = do_signalfd4(arg1, arg2, arg3, arg4);
         break;
 #endif
 
