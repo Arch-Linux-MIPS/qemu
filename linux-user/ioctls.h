@@ -385,3 +385,32 @@
                 MK_PTR(MK_STRUCT(STRUCT_rtentry)))
   IOCTL_SPECIAL(SIOCDELRT, IOC_W, do_ioctl_rt,
                 MK_PTR(MK_STRUCT(STRUCT_rtentry)))
+
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_VERSION, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_PROTOVER, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_PROTOSUBVER, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_OPENMOUNT, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_CLOSEMOUNT, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_READY, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_FAIL, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_SETPIPEFD, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_CATATONIC, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_TIMEOUT, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_REQUESTER, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_EXPIRE, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_ASKUMOUNT, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
+  IOCTL_SPECIAL(AUTOFS_DEV_IOCTL_ISMOUNTPOINT, IOC_RW,
+                do_ioctl_autofs, TYPE_NULL)
