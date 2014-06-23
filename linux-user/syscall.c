@@ -3112,8 +3112,20 @@ static abi_long do_ipc(unsigned int call, int first,
         ret = get_errno(semget(first, second, third));
         break;
 
-    case IPCOP_semctl:
-        ret = do_semctl(first, second, third, (union target_semun)(abi_ulong) ptr);
+    case IPCOP_semctl: {
+            union target_semun *arg;
+
+            if (!ptr) {
+                return -TARGET_EINVAL;
+            }
+
+            if (!lock_user_struct(VERIFY_READ, arg, ptr, 1)) {
+                return -TARGET_EFAULT;
+            }
+
+            ret = do_semctl(first, second, third, *arg);
+            unlock_user_struct(arg, ptr, 0);
+        }
         break;
 
     case IPCOP_msgget:
