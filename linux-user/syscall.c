@@ -2626,7 +2626,6 @@ static inline abi_long do_semctl(int semid, int semnum, int cmd,
 	case SETVAL:
             arg.val = tswap32(target_su.val);
             ret = get_errno(semctl(semid, semnum, cmd, arg));
-            target_su.val = tswap32(arg.val);
             break;
 	case GETALL:
 	case SETALL:
