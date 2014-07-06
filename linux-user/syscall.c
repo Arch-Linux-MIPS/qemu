@@ -1631,6 +1631,19 @@ set_timeout:
                 unlock_user_struct(tfprog, optval_addr, 1);
                 return ret;
         }
+        case TARGET_SO_LINGER: {
+                struct linger *ling;
+
+                if (!lock_user_struct(VERIFY_READ, ling, optval_addr, 0)) {
+                    return -TARGET_EFAULT;
+                }
+
+                ret = get_errno(setsockopt(sockfd, SOL_SOCKET,
+                                SO_LINGER, ling, sizeof(*ling)));
+
+                unlock_user_struct(ling, optval_addr, 0);
+            }
+            break;
             /* Options with 'int' argument.  */
         case TARGET_SO_DEBUG:
 		optname = SO_DEBUG;
@@ -1723,7 +1736,6 @@ static abi_long do_getsockopt(int sockfd, int level, int optname,
         level = SOL_SOCKET;
         switch (optname) {
         /* These don't just return a single integer */
-        case TARGET_SO_LINGER:
         case TARGET_SO_RCVTIMEO:
         case TARGET_SO_SNDTIMEO:
         case TARGET_SO_PEERNAME:
@@ -1761,6 +1773,24 @@ static abi_long do_getsockopt(int sockfd, int level, int optname,
             }
             break;
         }
+        case TARGET_SO_LINGER: {
+                struct linger *ling;
+                socklen_t ling_len = sizeof(*ling);
+
+                if (!lock_user_struct(VERIFY_READ, ling, optval_addr, 0)) {
+                    return -TARGET_EFAULT;
+                }
+
+                ret = get_errno(getsockopt(sockfd, SOL_SOCKET,
+                                SO_LINGER, ling, &ling_len));
+
+                unlock_user_struct(ling, optval_addr, 1);
+
+                if (put_user_u32(ling_len, optlen)) {
+                    return -TARGET_EFAULT;
+                }
+            }
+            break;
         /* Options with 'int' argument.  */
         case TARGET_SO_DEBUG:
             optname = SO_DEBUG;
